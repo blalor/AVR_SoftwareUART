@@ -1,0 +1,3 @@
+[submodule "test/support/CppUTest"]
+	path = test/support/CppUTest
+	url = git@github.com:blalor/CppUTest.git

@@ -11,6 +11,11 @@ typedef enum __usi_rx_state {
     USIRX_STATE_DONE_RECEIVING,
 } USIRxState;
 
+static float baud_rate;
+static bool enable_even_parity;
+static uint8_t timer0_seed;
+static uint8_t initial_timer0_seed;
+
 static const USISerialRxRegisters *reg;
 volatile USIRxState rxState;
 static void (*received_byte_handler)(uint8_t);
@@ -31,11 +36,44 @@ static inline uint8_t reverse_bits(const uint8_t to_swap) {
 }
 
 void usi_serial_receiver_init(const USISerialRxRegisters *_reg,
-                              void (*_handler)(uint8_t))
+                              void (*_handler)(uint8_t),
+                              const BaudRate br,
+                              const bool eep)
 {
     reg = _reg;
-    rxState = USIRX_STATE_WAITING_FOR_START_BIT;
     received_byte_handler = _handler;
+    baud_rate = (float)br;
+    enable_even_parity = eep;
+    
+    /*
+    F_CPU = 8000000 Hz => 0.0125 µS / cycle
+
+    F_CPU/8 = 1000000 Hz => 1 µS / cycle
+
+    baud rate = 9600
+    9600 bits/1 second
+    104.16667 µS/1 bit
+    52.083 µS/0.5 bit
+
+    cycles/bit = F_CPU/(baud * prescale)
+
+                  Timer Seed   % err    
+    F_CPU (kHz)   ====== 8000 ======     
+    prescale                             
+       1                --       --      
+       8           104.167    0.160      
+      64            13.021    0.161      
+     256             3.255    7.834      
+    1024                --       --      
+    */
+    
+    // cycles/bit = F_CPU/(baud * prescale)
+    timer0_seed = (uint8_t)(( F_CPU / baud_rate) / 8);
+    
+    // 1.5 times timer0_seed
+    initial_timer0_seed = (uint8_t)(( timer0_seed * 3 ) / 2);
+
+    rxState = USIRX_STATE_WAITING_FOR_START_BIT;
     
     *reg->pDDRB  &= ~_BV(PB0);   // set RX pin as input
     *reg->pPORTB |= _BV(PB0);    // enable pull-up on RX pin
@@ -61,7 +99,7 @@ ISR(PCINT0_vect) {
         // configure the timer to fire the OCR0A compare interrupt in the
         // middle of the first data bit
         timer0_set_counter(0);
-        timer0_set_ocra(INITIAL_TIMER0_SEED - PCINT_STARTUP_DELAY);
+        timer0_set_ocra(initial_timer0_seed - PCINT_STARTUP_DELAY);
         timer0_enable_ocra_interrupt();
         timer0_start();
         
@@ -85,7 +123,7 @@ static void usi_handle_ocra_reload() {
     // interrupt; with CTC mode, the timer's reset, and the OCR0A match clocks
     // the USI in hardware
     
-    timer0_set_ocra(TIMER0_SEED);
+    timer0_set_ocra(timer0_seed);
     timer0_disable_ocra_interrupt();
 }
 

@@ -22,9 +22,8 @@ extern "C" {
 #include <stdint.h>
 #include "CppUTest/TestHarness.h"
 
-static const float _BIT_PERIOD = 1e6/9600.0;
+static const float _BAUD_RATE = (float) BAUD_9600;
 
-// "virtual" registers to be passed to the USI device driver
 static const USISerialRxRegisters usiRegs = {
     &virtualPORTB,
     &virtualPINB,
@@ -71,7 +70,7 @@ TEST_GROUP(USISerialTests) {
         
         // must initialize Timer0 first
         timer0_init(&timer0Regs, TIMER0_PRESCALE_8);
-        usi_serial_receiver_init(&usiRegs, &brs_receive_byte);
+        usi_serial_receiver_init(&usiRegs, &brs_receive_byte, BAUD_9600, true);
     }
 };
 
@@ -89,7 +88,7 @@ TEST(USISerialTests, Initialization) {
     virtualPCMSK = 0;
     virtualTCCR0B = 0xff;
     
-    usi_serial_receiver_init(&usiRegs, &brs_receive_byte);
+    usi_serial_receiver_init(&usiRegs, &brs_receive_byte, BAUD_9600, true);
 
     BYTES_EQUAL(B00000001, virtualPORTB); // DI pull-up enabled
     BYTES_EQUAL(B11111110, virtualDDRB);  // DI configured for input
@@ -126,10 +125,11 @@ TEST(USISerialTests, HandleStartBit) {
     
     // check Timer0 configured to compare with OCR0A at 1.5 times the bit 
     // period, plus the interrupt latency
+    float bit_period = 1e6/_BAUD_RATE;
     DOUBLES_EQUAL(
-        (_BIT_PERIOD * 1.5) - PCINT_STARTUP_DELAY,
+        (bit_period * 1.5) - PCINT_STARTUP_DELAY,
         virtualOCR0A,
-        ((_BIT_PERIOD * 1.5) - PCINT_STARTUP_DELAY)*0.02 // 2%
+        ((bit_period * 1.5) - PCINT_STARTUP_DELAY)*0.02 // 2%
     );
     
     // ----- check USI config
@@ -144,6 +144,56 @@ TEST(USISerialTests, HandleStartBit) {
     BYTES_EQUAL(B11111110, virtualPCMSK); // PCI disabled
 }
 
+/*
+ * Checks the allowable range of baud rates.
+ *
+ * subset of HandleStartBit above
+ */
+TEST(USISerialTests, BaudRateChecks) {
+    BaudRate baud_rates[] = {
+        BAUD_9600,
+        BAUD_19200,
+        BAUD_38400,
+    };
+    
+    for (uint8_t br_ind = 0; br_ind < (sizeof(baud_rates)/sizeof(baud_rates[0])); br_ind++) {
+        BaudRate baud_rate = baud_rates[br_ind];
+        
+        virtualTCCR0B = 0;
+
+        usi_serial_receiver_init(&usiRegs, &brs_receive_byte, baud_rate, true);
+
+        /*
+        the DI line idles high; need to trigger the pin-change interrupt, 
+        emulating a change from high to low.
+        */
+
+        virtualPINB  = B11111110;
+        virtualTCNT0 = 99;
+        virtualGTCCR = 0xff;
+        virtualPCMSK = 0xff;
+
+        // fire the PCI
+        ISR_PCINT0_vect();
+
+        // ----- check Timer0 started
+        BYTES_EQUAL(0,         virtualTCNT0);  // timer value set to 0
+        BYTES_EQUAL(B00000010, virtualTCCR0B); // prescaler; cpu/8
+        BYTES_EQUAL(B01111111, virtualGTCCR);  // TSM bit cleared
+
+        BYTES_EQUAL(B00010000, virtualTIMSK);  // OCR0A compare interrupt enabled
+
+        // check Timer0 configured to compare with OCR0A at 1.5 times the bit 
+        // period, plus the interrupt latency
+        float bit_period = (1e6/((float) baud_rate));
+        DOUBLES_EQUAL(
+            (bit_period * 1.5) - PCINT_STARTUP_DELAY,
+            virtualOCR0A,
+            ((bit_period * 1.5) - PCINT_STARTUP_DELAY)*0.02 // 2%
+        );
+    }
+}
+
 TEST(USISerialTests, HandleByteReceivedPlusParityBit) {
     ISR_PCINT0_vect();
     
@@ -154,7 +204,8 @@ TEST(USISerialTests, HandleByteReceivedPlusParityBit) {
     
     ISR_TIMER0_COMPA_vect();
     
-    BYTES_EQUAL(TIMER0_SEED, virtualOCR0A);
+    // parameterize prescale if necessary
+    BYTES_EQUAL((uint8_t)(F_CPU/_BAUD_RATE/8), virtualOCR0A);
     BYTES_EQUAL(B11101111,   virtualTIMSK); // OCR0A compare interrupt disabled
     
     // assume USI is configured correctly and has received 8 bits, in reverse

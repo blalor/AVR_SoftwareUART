@@ -6,6 +6,8 @@ USI/UART statically configured for 9600-8-E-1
 */
 
 extern "C" {
+    #include <avr/io.h>
+    
     #include "8bit_binary.h"
     #include "usi_serial.h"
     #include "8bit_tiny_timer0.h"
@@ -23,16 +25,6 @@ extern "C" {
 static const float _BIT_PERIOD = 1e6/9600.0;
 
 // "virtual" registers to be passed to the USI device driver
-static uint8_t virtualPORTB;
-static uint8_t virtualPINB;
-static uint8_t virtualDDRB;
-static uint8_t virtualUSIBR;
-static uint8_t virtualUSICR;
-static uint8_t virtualUSISR;
-static uint8_t virtualGIFR;
-static uint8_t virtualGIMSK;
-static uint8_t virtualPCMSK;
-
 static const USISerialRxRegisters usiRegs = {
     &virtualPORTB,
     &virtualPINB,
@@ -44,15 +36,6 @@ static const USISerialRxRegisters usiRegs = {
     &virtualGIMSK,
     &virtualPCMSK,
 };
-
-// virtual registers for timer0
-static uint8_t virtualGTCCR;
-static uint8_t virtualTCCR0A;
-static uint8_t virtualTCCR0B;
-static uint8_t virtualOCR0A;
-static uint8_t virtualTIMSK;
-static uint8_t virtualTIFR;
-static uint8_t virtualTCNT0;
 
 static const Timer0Registers timer0Regs = {
     &virtualGTCCR,

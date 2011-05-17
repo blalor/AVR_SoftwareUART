@@ -236,3 +236,38 @@ TEST(USISerialTests, HandleByteReceivedPlusParityBit) {
     BYTES_EQUAL(B00000001, virtualPCMSK); // PCINT0 re-enabled
     // @todo confirm other register settings
 }
+
+TEST(USISerialTests, HandleByteReceivedNoParity) {
+    usi_serial_receiver_init(&usiRegs, &brs_receive_byte, BAUD_9600, false);
+    
+    // signal start bit has … uh … started
+    ISR_PCINT0_vect();
+    
+    // fire first compare interrupt, assert new ocra value, confirm ocra 
+    // interrupt disabled
+    virtualOCR0A = 0;
+    virtualTIMSK = 0xff;
+    
+    ISR_TIMER0_COMPA_vect();
+    
+    // parameterize prescale if necessary
+    BYTES_EQUAL((uint8_t)(F_CPU/_BAUD_RATE/8), virtualOCR0A);
+    BYTES_EQUAL(B11101111, virtualTIMSK); // OCR0A compare interrupt disabled
+    
+    // assume USI is configured correctly and has received 8 bits, in reverse
+    // order. we're going to pretend an 'a' has been sent
+                   
+    virtualUSIBR = B10000110; // 'a' reversed
+    virtualTCCR0B = 0xff;
+    virtualPCMSK = 0;
+    ISR_USI_OVF_vect();
+    
+    BYTES_EQUAL(1, brs_get_invocation_count());
+    BYTES_EQUAL('a', brs_get_received_byte());
+    
+    // ----- check config; no parity bit. timer and USI should be disabled
+    BYTES_EQUAL(B11111000, virtualTCCR0B); // timer0 prescaler cleared
+    BYTES_EQUAL(0,         virtualUSICR); // USI disabled
+    BYTES_EQUAL(B00000001, virtualPCMSK); // PCINT0 re-enabled
+    // @todo confirm other register settings
+}

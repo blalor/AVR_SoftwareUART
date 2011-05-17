@@ -1,8 +1,9 @@
-#include "usi_serial.h"
-
 #include <avr/interrupt.h>
 
 #include "8bit_tiny_timer0.h"
+
+#include "usi_serial.h"
+#define USI_COUNTER_MAX_COUNT 16
 
 typedef enum __usi_rx_state {
     USIRX_STATE_WAITING_FOR_START_BIT,
@@ -12,7 +13,7 @@ typedef enum __usi_rx_state {
 } USIRxState;
 
 static float baud_rate;
-static bool enable_even_parity;
+static bool even_parity_enabled;
 static uint8_t timer0_seed;
 static uint8_t initial_timer0_seed;
 
@@ -38,12 +39,12 @@ static inline uint8_t reverse_bits(const uint8_t to_swap) {
 void usi_serial_receiver_init(const USISerialRxRegisters *_reg,
                               void (*_handler)(uint8_t),
                               const BaudRate br,
-                              const bool eep)
+                              const bool enable_even_parity)
 {
     reg = _reg;
     received_byte_handler = _handler;
     baud_rate = (float)br;
-    enable_even_parity = eep;
+    even_parity_enabled = enable_even_parity;
     
     /*
     F_CPU = 8000000 Hz => 0.0125 µS / cycle
@@ -106,7 +107,7 @@ ISR(PCINT0_vect) {
         // ----- configure the USI
         // clear interrupt flags, prepare for data bit count
         // overflow should occur when all data bits are received
-        *reg->pUSISR = 0xF0 | USI_COUNTER_RECEIVE_SEED;
+        *reg->pUSISR = 0xF0 | (USI_COUNTER_MAX_COUNT - DATA_BITS);
         
         // enable overflow interrupt, set 3-wire mode, clock from timer0 comp
         *reg->pUSICR = _BV(USIOIE) | _BV(USIWM0) | _BV(USICS0);
@@ -133,21 +134,21 @@ ISR(USI_OVF_vect) {
     if (rxState == USIRX_STATE_RECEIVING) {
         // WARNING! this is being called in an ISR and MUST be very fast!
         received_byte_handler(reverse_bits(*reg->pUSIBR));
-        
-        // clear interrupt flags, prepare for data bit count
-        // overflow should occur when all data bits are received
-        *reg->pUSISR = 0xF0 | USI_COUNTER_PARITY_SEED;
+    }
+    
+    if (even_parity_enabled && (rxState == USIRX_STATE_RECEIVING)) {
+        // clear interrupt flags, prepare for parity bit count
+        // overflow should occur when all parity bits are received
+        *reg->pUSISR = 0xF0 | (USI_COUNTER_MAX_COUNT - PARITY_BITS);
         rxState = USIRX_STATE_WAITING_FOR_PARITY_BIT;
     }
-    else /* USIRX_STATE_WAITING_FOR_PARITY_BIT */ {
-        // got parity bit
-        
+    else {
         // disable timer
         timer0_stop();
-    
+
         *reg->pUSICR = 0;            // disable USI
         *reg->pPCMSK |= _BV(PCINT0); // re-enable PCINT
-        
+    
         rxState = USIRX_STATE_DONE_RECEIVING;
     }
 }

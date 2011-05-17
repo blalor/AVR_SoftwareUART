@@ -1,8 +1,6 @@
 /*
-well, this ought to be interesting, since this is normally completely
-in hardware…
-
-USI/UART statically configured for 9600-8-E-1
+    well, this ought to be interesting, since this is normally completely
+    in hardware…
 */
 
 extern "C" {
@@ -46,7 +44,7 @@ static const Timer0Registers timer0Regs = {
     &virtualTCNT0,
 };
 
-TEST_GROUP(USISerialTests) {
+TEST_GROUP(USISerialRXTests) {
     void setup() {
         virtualPORTB = 0;
         virtualDDRB = 0xff;
@@ -74,13 +72,13 @@ TEST_GROUP(USISerialTests) {
     }
 };
 
-TEST(USISerialTests, ClockSpeed) {
+TEST(USISerialRXTests, ClockSpeed) {
     // sanity check; need to change if CPU clock changes, but the timer 
     // config is hard-coded.
     CHECK(F_CPU == 8000000);
 }
 
-TEST(USISerialTests, Initialization) {
+TEST(USISerialRXTests, Initialization) {
     virtualPORTB = 0x0;
     virtualDDRB = 0xff;
     virtualUSICR = 0xff;
@@ -102,7 +100,7 @@ TEST(USISerialTests, Initialization) {
     BYTES_EQUAL(0,         virtualTIMSK);  // OCR0A comp match interrupt disabled
 }
 
-TEST(USISerialTests, HandleStartBit) {
+TEST(USISerialRXTests, HandleStartBit) {
     /*
     the DI line idles high; need to trigger the pin-change interrupt, 
     emulating a change from high to low.
@@ -149,7 +147,7 @@ TEST(USISerialTests, HandleStartBit) {
  *
  * subset of HandleStartBit above
  */
-TEST(USISerialTests, BaudRateChecks) {
+TEST(USISerialRXTests, BaudRateChecks) {
     BaudRate baud_rates[] = {
         BAUD_9600,
         BAUD_19200,
@@ -194,7 +192,7 @@ TEST(USISerialTests, BaudRateChecks) {
     }
 }
 
-TEST(USISerialTests, HandleByteReceivedPlusParityBit) {
+TEST(USISerialRXTests, HandleByteReceivedPlusParityBit) {
     ISR_PCINT0_vect();
     
     // fire first compare interrupt, assert new ocra value, confirm ocra 
@@ -237,7 +235,7 @@ TEST(USISerialTests, HandleByteReceivedPlusParityBit) {
     // @todo confirm other register settings
 }
 
-TEST(USISerialTests, HandleByteReceivedNoParity) {
+TEST(USISerialRXTests, HandleByteReceivedNoParity) {
     usi_serial_receiver_init(&usiRegs, &brs_receive_byte, BAUD_9600, false);
     
     // signal start bit has … uh … started

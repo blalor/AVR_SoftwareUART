@@ -12,7 +12,6 @@ typedef enum __usi_rx_state {
     USIRX_STATE_DONE_RECEIVING,
 } USIRxState;
 
-static float baud_rate;
 static bool even_parity_enabled;
 static uint8_t timer0_seed;
 static uint8_t initial_timer0_seed;
@@ -43,7 +42,6 @@ void usi_serial_receiver_init(const USISerialRxRegisters *_reg,
 {
     reg = _reg;
     received_byte_handler = _handler;
-    baud_rate = (float)br;
     even_parity_enabled = enable_even_parity;
     
     /*
@@ -69,10 +67,11 @@ void usi_serial_receiver_init(const USISerialRxRegisters *_reg,
     */
     
     // cycles/bit = F_CPU/(baud * prescale)
-    timer0_seed = (uint8_t)(( F_CPU / baud_rate) / 8);
+    timer0_seed = (uint8_t)(( F_CPU / ((float) baud_rate)) / 8);
     
     // 1.5 times timer0_seed
-    initial_timer0_seed = (uint8_t)(( timer0_seed * 3 ) / 2);
+    initial_timer0_seed =
+        ((uint8_t)(( timer0_seed * 3 ) / 2)) - PCINT_STARTUP_DELAY;
 
     rxState = USIRX_STATE_WAITING_FOR_START_BIT;
     
@@ -100,7 +99,7 @@ ISR(PCINT0_vect) {
         // configure the timer to fire the OCR0A compare interrupt in the
         // middle of the first data bit
         timer0_set_counter(0);
-        timer0_set_ocra(initial_timer0_seed - PCINT_STARTUP_DELAY);
+        timer0_set_ocra(initial_timer0_seed);
         timer0_enable_ocra_interrupt();
         timer0_start();
         

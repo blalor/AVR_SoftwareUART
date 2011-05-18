@@ -193,12 +193,13 @@ ISR(USI_OVF_vect) {
                     *reg->pUSIDR &= ~_BV(2);
                 }
 
-                // set up next overflow to shut down USI
+                // set up next overflow to shut down USI; additional tick for
+                // parity bit
                 *reg->pUSISR = 0xf0 | (USI_COUNTER_MAX_COUNT - (HALF_FRAME + 1));
             }
             else {
-            // set up next overflow to shut down USI
-            *reg->pUSISR = 0xf0 | (USI_COUNTER_MAX_COUNT - HALF_FRAME);
+                // set up next overflow to shut down USI
+                *reg->pUSISR = 0xf0 | (USI_COUNTER_MAX_COUNT - HALF_FRAME);
             }
 
             txState = USITX_STATE_COMPLETE;

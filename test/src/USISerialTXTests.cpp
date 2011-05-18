@@ -165,8 +165,110 @@ TEST(USISerialTXTests, TransmitByte) {
     BYTES_EQUAL(B00000010, virtualPORTB); // PB1 internal pull-up enabled
 }
 
-IGNORE_TEST(USISerialTXTests, TransmitByteWithParity) {
+TEST(USISerialTXTests, TransmitByteWithParity) {
     usi_serial_init(&usiRegs, &brs_receive_byte, BAUD_9600, true);
     
-    // @todo test for correct parity bit
+    // 'e'
+    //           B01100101, 101, 0x65
+    // reversed: B10100110, 166, 0xA6
+    usi_tx_byte('e');
+    
+    // -- ok, now the first timer tick and overflow; first half-frame
+    virtualUSIDR = 0;
+    virtualUSISR = 0;
+
+    ISR_USI_OVF_vect();
+    
+    // USIDR should have:
+    //  1 (line idling high)
+    //  0 (start bit)
+    //  101001 (bits 0..5 of the letter 'e')
+    BYTES_EQUAL(B10101001, virtualUSIDR);
+    
+    BYTES_EQUAL(B11111011, virtualUSISR); // flags cleared, overflow after 5 bits
+    
+    // -- now the 2nd tick/overflow; 2nd half-frame
+    virtualUSIDR = 0;
+    virtualUSISR = 0;
+    
+    ISR_USI_OVF_vect();
+    
+    // USIDR should have:
+    //  00110 (bits 3..7 of the letter 'e')
+    //  0 (parity bit; even number of 1s in 'e')
+    //  1 (stop bit)
+    //  1 (padding)
+    BYTES_EQUAL(B00110011, virtualUSIDR);
+    
+    // 2nd overflow doesn't actually need to send the stop bit
+    // the line idles high, and the first bit sent when transmitting a byte
+    // is a 1
+    BYTES_EQUAL(B11111010, virtualUSISR); // flags cleared, overflow after 6 bits
+    
+    // -- the last tick/overflow; turn off USI, reset to idle state
+    virtualPCMSK = 0;
+    virtualDDRB = 0xff;
+    virtualPORTB = 0;
+    virtualUSICR = 0xff;
+    
+    ISR_USI_OVF_vect();
+    
+    BYTES_EQUAL(0,         virtualUSICR); // USI disabled
+    BYTES_EQUAL(B00000001, virtualPCMSK); // PCINT0 enabled
+    BYTES_EQUAL(B11111101, virtualDDRB);  // PB1 configured as input
+    BYTES_EQUAL(B00000010, virtualPORTB); // PB1 internal pull-up enabled
+}
+
+TEST(USISerialTXTests, TransmitByteWithParityOddOnes) {
+    usi_serial_init(&usiRegs, &brs_receive_byte, BAUD_9600, true);
+    
+    // 'g'
+    //           B01100111, 103, 0x67
+    // reversed: B11100110, 230, 0xE6
+    usi_tx_byte('g');
+    
+    // -- ok, now the first timer tick and overflow; first half-frame
+    virtualUSIDR = 0;
+    virtualUSISR = 0;
+
+    ISR_USI_OVF_vect();
+    
+    // USIDR should have:
+    //  1 (line idling high)
+    //  0 (start bit)
+    //  111001 (bits 0..5 of the letter 'g')
+    BYTES_EQUAL(B10111001, virtualUSIDR);
+    
+    BYTES_EQUAL(B11111011, virtualUSISR); // flags cleared, overflow after 5 bits
+    
+    // -- now the 2nd tick/overflow; 2nd half-frame
+    virtualUSIDR = 0;
+    virtualUSISR = 0;
+    
+    ISR_USI_OVF_vect();
+    
+    // USIDR should have:
+    //  00110 (bits 3..7 of the letter 'g')
+    //  1 (parity bit; odd number of 1s in 'g')
+    //  1 (stop bit)
+    //  1 (padding)
+    BYTES_EQUAL(B00110111, virtualUSIDR);
+    
+    // 2nd overflow doesn't actually need to send the stop bit
+    // the line idles high, and the first bit sent when transmitting a byte
+    // is a 1
+    BYTES_EQUAL(B11111010, virtualUSISR); // flags cleared, overflow after 6 bits
+    
+    // -- the last tick/overflow; turn off USI, reset to idle state
+    virtualPCMSK = 0;
+    virtualDDRB = 0xff;
+    virtualPORTB = 0;
+    virtualUSICR = 0xff;
+    
+    ISR_USI_OVF_vect();
+    
+    BYTES_EQUAL(0,         virtualUSICR); // USI disabled
+    BYTES_EQUAL(B00000001, virtualPCMSK); // PCINT0 enabled
+    BYTES_EQUAL(B11111101, virtualDDRB);  // PB1 configured as input
+    BYTES_EQUAL(B00000010, virtualPORTB); // PB1 internal pull-up enabled
 }

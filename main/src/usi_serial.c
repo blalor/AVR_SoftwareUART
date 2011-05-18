@@ -1,4 +1,5 @@
 #include <avr/interrupt.h>
+#include <util/parity.h>
 
 #include "8bit_tiny_timer0.h"
 
@@ -184,8 +185,21 @@ ISR(USI_OVF_vect) {
             // load USIDR with the last 5 bits of the byte and pad with 1s
             *reg->pUSIDR = (pending_tx_byte << 3) | 0x07;
             
+            if (even_parity_enabled) {
+                if (parity_even_bit(pending_tx_byte)) {
+                    *reg->pUSIDR |= _BV(2);
+                }
+                else {
+                    *reg->pUSIDR &= ~_BV(2);
+                }
+
+                // set up next overflow to shut down USI
+                *reg->pUSISR = 0xf0 | (USI_COUNTER_MAX_COUNT - (HALF_FRAME + 1));
+            }
+            else {
             // set up next overflow to shut down USI
             *reg->pUSISR = 0xf0 | (USI_COUNTER_MAX_COUNT - HALF_FRAME);
+            }
 
             txState = USITX_STATE_COMPLETE;
         }

@@ -28,6 +28,7 @@ static const USISerialRxRegisters usiRegs = {
     &virtualDDRB,
     &virtualUSIBR,
     &virtualUSICR,
+    &virtualUSIDR,
     &virtualUSISR,
     &virtualGIFR,
     &virtualGIMSK,
@@ -68,7 +69,7 @@ TEST_GROUP(USISerialRXTests) {
         
         // must initialize Timer0 first
         timer0_init(&timer0Regs, TIMER0_PRESCALE_8);
-        usi_serial_receiver_init(&usiRegs, &brs_receive_byte, BAUD_9600, true);
+        usi_serial_init(&usiRegs, &brs_receive_byte, BAUD_9600, true);
     }
 };
 
@@ -86,10 +87,11 @@ TEST(USISerialRXTests, Initialization) {
     virtualPCMSK = 0;
     virtualTCCR0B = 0xff;
     
-    usi_serial_receiver_init(&usiRegs, &brs_receive_byte, BAUD_9600, true);
+    usi_serial_init(&usiRegs, &brs_receive_byte, BAUD_9600, true);
 
-    BYTES_EQUAL(B00000001, virtualPORTB); // DI pull-up enabled
-    BYTES_EQUAL(B11111110, virtualDDRB);  // DI configured for input
+    // see comment in usi_serial_init re: reasoning for DO as input
+    BYTES_EQUAL(B00000011, virtualPORTB); // DI, DO pull-ups enabled
+    BYTES_EQUAL(B11111100, virtualDDRB);  // DI, DO configured for input
     BYTES_EQUAL(B00000000, virtualUSICR); // USI disabled
     BYTES_EQUAL(B00100000, virtualGIMSK); // PCINTs enabled
     BYTES_EQUAL(B00000001, virtualPCMSK); // PCINT0 enabled
@@ -151,6 +153,7 @@ TEST(USISerialRXTests, BaudRateChecks) {
     BaudRate baud_rates[] = {
         BAUD_9600,
         BAUD_19200,
+        // BAUD_28800, fails DOUBLES_EQUAL
         BAUD_38400,
     };
     
@@ -159,7 +162,7 @@ TEST(USISerialRXTests, BaudRateChecks) {
         
         virtualTCCR0B = 0;
 
-        usi_serial_receiver_init(&usiRegs, &brs_receive_byte, baud_rate, true);
+        usi_serial_init(&usiRegs, &brs_receive_byte, baud_rate, true);
 
         /*
         the DI line idles high; need to trigger the pin-change interrupt, 
@@ -236,7 +239,7 @@ TEST(USISerialRXTests, HandleByteReceivedPlusParityBit) {
 }
 
 TEST(USISerialRXTests, HandleByteReceivedNoParity) {
-    usi_serial_receiver_init(&usiRegs, &brs_receive_byte, BAUD_9600, false);
+    usi_serial_init(&usiRegs, &brs_receive_byte, BAUD_9600, false);
     
     // signal start bit has … uh … started
     ISR_PCINT0_vect();

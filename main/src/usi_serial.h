@@ -1,5 +1,8 @@
 /*
  * Based on AVR307
+ *
+ * NOTE:
+ *    DO requires external pull-up (@todo verify)
  */
 
 #ifndef USI_SERIAL_H
@@ -29,6 +32,7 @@ typedef struct __usi_ser_rx_regs {
     volatile uint8_t *pDDRB;
     volatile uint8_t *pUSIBR;
     volatile uint8_t *pUSICR;
+    volatile uint8_t *pUSIDR;
     volatile uint8_t *pUSISR;
     volatile uint8_t *pGIFR;
     volatile uint8_t *pGIMSK;
@@ -43,11 +47,18 @@ typedef struct __usi_ser_rx_regs {
  * @param baud_rate the baud rate to operate at
  * @param enable_even_parity true if using even parity
  */
-void usi_serial_receiver_init(
+void usi_serial_init(
     const USISerialRxRegisters *reg,
     void (*received_byte_handler)(uint8_t),
     const BaudRate baud_rate,
     const bool enable_even_parity
 );
+
+/*
+ * Transmit a byte.
+ *
+ * @param b the byte to transmit
+ */
+void usi_tx_byte(const uint8_t b);
 
 #endif

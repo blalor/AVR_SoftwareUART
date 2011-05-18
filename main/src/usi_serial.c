@@ -105,7 +105,7 @@ void usi_serial_init(const USISerialRxRegisters *_reg,
     timer0_stop();
 }
 
-void usi_tx_byte(const uint8_t b) {
+int8_t usi_tx_byte(const uint8_t b) {
     // wait for tx- or rx-in-progress to complete
     while ((rxState != USIRX_STATE_IDLE) && (txState != USITX_STATE_IDLE));
 
@@ -116,7 +116,7 @@ void usi_tx_byte(const uint8_t b) {
     
     *reg->pPCMSK &= ~_BV(PCINT0); // disable PCINT0
     *reg->pDDRB |= _BV(PB1);      // configure PB1 as output
-    *reg->pUSIDR = 0xff;
+    *reg->pUSIDR = 0xff;          // drive line high until data provided
     
     // enable USI overflow interrupt
     // set USI 3-wire mode
@@ -129,6 +129,8 @@ void usi_tx_byte(const uint8_t b) {
     timer0_set_counter(0);
     timer0_set_ocra(timer0_seed);
     timer0_start();
+    
+    return 0;
 }
 
 // @todo refactor this so that the PCINT0 ISR is configured in main()

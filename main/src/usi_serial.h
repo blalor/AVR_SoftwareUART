@@ -59,6 +59,6 @@ void usi_serial_init(
  *
  * @param b the byte to transmit
  */
-void usi_tx_byte(const uint8_t b);
+int8_t usi_tx_byte(const uint8_t b);
 
 #endif

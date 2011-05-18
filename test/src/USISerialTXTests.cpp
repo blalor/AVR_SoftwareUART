@@ -103,7 +103,7 @@ TEST(USISerialTXTests, TransmitByte) {
     // 'e'
     //           B01100101, 101, 0x65
     // reversed: B10100110, 166, 0xA6
-    usi_tx_byte('e');
+    CHECK_EQUAL(0, usi_tx_byte('e'));
     
     BYTES_EQUAL(B11111110, virtualPCMSK); // PCINT0 disabled
     BYTES_EQUAL(B00000010, virtualDDRB);  // PB1 configured as output
@@ -171,7 +171,7 @@ TEST(USISerialTXTests, TransmitByteWithParity) {
     // 'e'
     //           B01100101, 101, 0x65
     // reversed: B10100110, 166, 0xA6
-    usi_tx_byte('e');
+    CHECK_EQUAL(0, usi_tx_byte('e'));
     
     // -- ok, now the first timer tick and overflow; first half-frame
     virtualUSIDR = 0;
@@ -225,7 +225,7 @@ TEST(USISerialTXTests, TransmitByteWithParityOddOnes) {
     // 'g'
     //           B01100111, 103, 0x67
     // reversed: B11100110, 230, 0xE6
-    usi_tx_byte('g');
+    CHECK_EQUAL(0, usi_tx_byte('g'));
     
     // -- ok, now the first timer tick and overflow; first half-frame
     virtualUSIDR = 0;

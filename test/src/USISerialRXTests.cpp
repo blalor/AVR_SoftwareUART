@@ -22,7 +22,7 @@ extern "C" {
 
 static const float _BAUD_RATE = (float) BAUD_9600;
 
-static const USISerialRxRegisters usiRegs = {
+static const USISerialRegisters usiRegs = {
     &virtualPORTB,
     &virtualPINB,
     &virtualDDRB,

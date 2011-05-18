@@ -18,7 +18,7 @@ extern "C" {
 static const float _BAUD_RATE = (float) BAUD_9600;
 static const float bit_period = 1e6/_BAUD_RATE;
 
-static const USISerialRxRegisters usiRegs = {
+static const USISerialRegisters usiRegs = {
     &virtualPORTB,
     &virtualPINB,
     &virtualDDRB,

@@ -37,7 +37,7 @@ typedef struct __usi_ser_rx_regs {
     volatile uint8_t *pGIFR;
     volatile uint8_t *pGIMSK;
     volatile uint8_t *pPCMSK;
-} USISerialRxRegisters;
+} USISerialRegisters;
 
 /*
  * Initialize USI Serial receiver.
@@ -48,7 +48,7 @@ typedef struct __usi_ser_rx_regs {
  * @param enable_even_parity true if using even parity
  */
 void usi_serial_init(
-    const USISerialRxRegisters *reg,
+    const USISerialRegisters *reg,
     void (*received_byte_handler)(uint8_t),
     const BaudRate baud_rate,
     const bool enable_even_parity

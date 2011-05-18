@@ -20,7 +20,7 @@ typedef enum __usi_tx_state {
     USITX_STATE_COMPLETE,
 } USITxState;
 
-static const USISerialRxRegisters *reg;
+static const USISerialRegisters *reg;
 static void (*received_byte_handler)(uint8_t);
 
 static bool even_parity_enabled;
@@ -46,7 +46,7 @@ static inline uint8_t reverse_bits(const uint8_t to_swap) {
     return x;    
 }
 
-void usi_serial_init(const USISerialRxRegisters *_reg,
+void usi_serial_init(const USISerialRegisters *_reg,
                      void (*_handler)(uint8_t),
                      const BaudRate baud_rate,
                      const bool enable_even_parity)

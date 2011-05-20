@@ -46,6 +46,28 @@ static inline uint8_t reverse_bits(const uint8_t to_swap) {
     return x;    
 }
 
+/*
+ * The USI is clocked from its overflow interrupt (for our needs, at least).
+ * Pass in the offset from the max value, or the number of increments before
+ * overflowing.
+ */
+static inline void set_usi_counter_and_clear_flags(const uint8_t count_until_overflow) {
+    *reg->pUSISR = 0xF0 | (USI_COUNTER_MAX_COUNT - count_until_overflow);
+}
+
+static inline void enable_3wire_usi(const uint8_t count_until_overflow) {
+    set_usi_counter_and_clear_flags(count_until_overflow);
+    
+    // enable USI overflow interrupt
+    // set USI 3-wire mode
+    // set USI clock source to timer0 compare
+    *reg->pUSICR = _BV(USIOIE) | _BV(USIWM0) | _BV(USICS0);
+}
+
+static inline void disable_usi(void) {
+    *reg->pUSICR = 0;
+}
+
 void usi_serial_init(const USISerialRegisters *_reg,
                      void (*_handler)(uint8_t),
                      const BaudRate baud_rate,
@@ -56,7 +78,7 @@ void usi_serial_init(const USISerialRegisters *_reg,
     even_parity_enabled = enable_even_parity;
     
     /*
-    F_CPU = 8000000 Hz => 0.0125 µS / cycle
+    F_CPU = 8000000 Hz => 0.125 µS / cycle
 
     F_CPU/8 = 1000000 Hz => 1 µS / cycle
 
@@ -93,13 +115,13 @@ void usi_serial_init(const USISerialRegisters *_reg,
     *reg->pDDRB  &= ~(_BV(PB0) | _BV(PB1)); // set RX *and* TX pins as inputs
     *reg->pPORTB |= _BV(PB0) | _BV(PB1);    // enable pull-up on RX *and* TX pins
     
-    *reg->pUSICR  = 0;           // disable USI
-    
+    disable_usi();
+        
     *reg->pGIFR  &= ~_BV(PCIF);  // clear PCI flag, just because
     *reg->pGIMSK |= _BV(PCIE);   // enable PCIs
     *reg->pPCMSK |= _BV(PCINT0); // enable PCINT0
     
-    // prepare timer0; not started until PCINT0 fires
+    // prepare timer0; not started until PCINT0 fires or a byte is transmitted
     timer0_set_ocra_interrupt_handler(&usi_handle_ocra_reload);
     timer0_enable_ctc();
     timer0_stop();
@@ -107,29 +129,24 @@ void usi_serial_init(const USISerialRegisters *_reg,
 
 int8_t usi_tx_byte(const uint8_t b) {
     // wait for tx- or rx-in-progress to complete
-    while ((rxState != USIRX_STATE_IDLE) && (txState != USITX_STATE_IDLE));
+    
+    while ((rxState != USIRX_STATE_IDLE) || (txState != USITX_STATE_IDLE));
 
+    *reg->pPCMSK &= ~_BV(PCINT0); // disable PCINT0
+    *reg->pUSIDR = 0xff;          // drive line high until data provided
+    *reg->pDDRB |= _BV(PB1);      // configure PB1 as output
+    
     txState = USITX_STATE_READY_FOR_FIRST_HALF_FRAME;
     
     // reverse byte
     pending_tx_byte = reverse_bits(b);
     
-    *reg->pPCMSK &= ~_BV(PCINT0); // disable PCINT0
-    *reg->pDDRB |= _BV(PB1);      // configure PB1 as output
-    *reg->pUSIDR = 0xff;          // drive line high until data provided
-    
-    // enable USI overflow interrupt
-    // set USI 3-wire mode
-    // set USI clock source to timer0 compare
-    *reg->pUSICR = _BV(USIOIE) | _BV(USIWM0) | _BV(USICS0);
-    
-    *reg->pUSISR = 0xF0 | // clear flags
-                   0x0F;  // timer to just-about-to-overflow
+    enable_3wire_usi(1); // timer to just-about-to-overflow
     
     timer0_set_counter(0);
     timer0_set_ocra(timer0_seed);
     timer0_start();
-    
+
     return 0;
 }
 
@@ -147,12 +164,8 @@ ISR(PCINT0_vect) {
         timer0_start();
         
         // ----- configure the USI
-        // clear interrupt flags, prepare for data bit count
         // overflow should occur when all data bits are received
-        *reg->pUSISR = 0xF0 | (USI_COUNTER_MAX_COUNT - DATA_BITS);
-        
-        // enable overflow interrupt, set 3-wire mode, clock from timer0 comp
-        *reg->pUSICR = _BV(USIOIE) | _BV(USIWM0) | _BV(USICS0);
+        enable_3wire_usi(DATA_BITS);
         
         // ----- time-critical stuff done
         *reg->pPCMSK &= ~_BV(PCINT0); // disable PCINT0
@@ -178,8 +191,9 @@ ISR(USI_OVF_vect) {
             // load USIDR with a 1, the start bit, and the first 5 bits of the byte
             *reg->pUSIDR = 0x80 | (pending_tx_byte >> 2);
 
-            // set up next overflow to reload USIDR with the remaining half of the byte
-            *reg->pUSISR = 0xf0 | (USI_COUNTER_MAX_COUNT - HALF_FRAME);
+            // set up next overflow to reload USIDR with the remaining
+            // half of the byte
+            set_usi_counter_and_clear_flags(HALF_FRAME);
             
             txState = USITX_STATE_READY_FOR_SECOND_HALF_FRAME;
         }
@@ -197,17 +211,17 @@ ISR(USI_OVF_vect) {
 
                 // set up next overflow to shut down USI; additional tick for
                 // parity bit
-                *reg->pUSISR = 0xf0 | (USI_COUNTER_MAX_COUNT - (HALF_FRAME + 1));
+                set_usi_counter_and_clear_flags(HALF_FRAME + 1);
             }
             else {
                 // set up next overflow to shut down USI
-                *reg->pUSISR = 0xf0 | (USI_COUNTER_MAX_COUNT - HALF_FRAME);
+                set_usi_counter_and_clear_flags(HALF_FRAME);
             }
 
             txState = USITX_STATE_COMPLETE;
         }
         else /* USITX_STATE_COMPLETE */ {
-            *reg->pUSICR = 0;            // disable USI
+            disable_usi();
             *reg->pPCMSK |= _BV(PCINT0); // re-enable PCINT
             *reg->pDDRB &= ~_BV(PB1);    // PB1 as input
             *reg->pPORTB |= _BV(PB1);    // PB1 internal pull-up enabled
@@ -224,14 +238,14 @@ ISR(USI_OVF_vect) {
         if (even_parity_enabled && (rxState == USIRX_STATE_RECEIVING)) {
             // clear interrupt flags, prepare for parity bit count
             // overflow should occur when all parity bits are received
-            *reg->pUSISR = 0xF0 | (USI_COUNTER_MAX_COUNT - PARITY_BITS);
+            set_usi_counter_and_clear_flags(PARITY_BITS);
             rxState = USIRX_STATE_WAITING_FOR_PARITY_BIT;
         }
         else {
             // disable timer
             timer0_stop();
-
-            *reg->pUSICR = 0;            // disable USI
+            
+            disable_usi();
             *reg->pPCMSK |= _BV(PCINT0); // re-enable PCINT
 
             rxState = USIRX_STATE_IDLE;

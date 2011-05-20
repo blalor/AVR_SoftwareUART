@@ -125,12 +125,16 @@ TEST(USISerialRXTests, HandleStartBit) {
     
     // check Timer0 configured to compare with OCR0A at 1.5 times the bit 
     // period, plus the interrupt latency
-    float bit_period = 1e6/_BAUD_RATE;
-    DOUBLES_EQUAL(
-        (bit_period * 1.5) - PCINT_STARTUP_DELAY,
-        virtualOCR0A,
-        ((bit_period * 1.5) - PCINT_STARTUP_DELAY)*0.02 // 2%
-    );
+
+    // 9600: 104.16666666666667; *1.5: 156.25; cast to uint8_t: 156
+    BYTES_EQUAL(156 - PCINT_STARTUP_DELAY, virtualOCR0A);
+
+    // float bit_period = 1e6/_BAUD_RATE;
+    // DOUBLES_EQUAL(
+    //     (bit_period * 1.5) - PCINT_STARTUP_DELAY,
+    //     virtualOCR0A,
+    //     ((bit_period * 1.5) - PCINT_STARTUP_DELAY)*0.02 // 2%
+    // );
     
     // ----- check USI config
     
@@ -155,6 +159,14 @@ TEST(USISerialRXTests, BaudRateChecks) {
         BAUD_19200,
         // BAUD_28800, fails DOUBLES_EQUAL
         BAUD_38400,
+    };
+    
+    // (1e6/BAUD_x)*1.5
+    uint8_t bit_periods[] = {
+        156,
+        78,
+        // 52,
+        39,
     };
     
     for (uint8_t br_ind = 0; br_ind < (sizeof(baud_rates)/sizeof(baud_rates[0])); br_ind++) {
@@ -183,7 +195,7 @@ TEST(USISerialRXTests, BaudRateChecks) {
         BYTES_EQUAL(B01111111, virtualGTCCR);  // TSM bit cleared
 
         BYTES_EQUAL(B00010000, virtualTIMSK);  // OCR0A compare interrupt enabled
-
+        
         // check Timer0 configured to compare with OCR0A at 1.5 times the bit 
         // period, plus the interrupt latency
         float bit_period = (1e6/((float) baud_rate));
@@ -192,6 +204,10 @@ TEST(USISerialRXTests, BaudRateChecks) {
             virtualOCR0A,
             ((bit_period * 1.5) - PCINT_STARTUP_DELAY)*0.02 // 2%
         );
+        
+        // further sanity check with hand-calculated values, so I can remove
+        // the floating point stuff in the main code
+        BYTES_EQUAL(bit_periods[br_ind] - PCINT_STARTUP_DELAY, virtualOCR0A);
     }
 }
 
@@ -207,7 +223,7 @@ TEST(USISerialRXTests, HandleByteReceivedPlusParityBit) {
     
     // parameterize prescale if necessary
     BYTES_EQUAL((uint8_t)(F_CPU/_BAUD_RATE/8), virtualOCR0A);
-    BYTES_EQUAL(B11101111,   virtualTIMSK); // OCR0A compare interrupt disabled
+    BYTES_EQUAL(B11101111, virtualTIMSK); // OCR0A compare interrupt disabled
     
     // assume USI is configured correctly and has received 8 bits, in reverse
     // order. we're going to pretend an 'a' has been sent

@@ -100,11 +100,10 @@ void usi_serial_init(const USISerialRegisters *_reg,
     */
     
     // cycles/bit = F_CPU/(baud * prescale)
-    timer0_seed = (uint8_t)(( F_CPU / ((float) baud_rate)) / 8);
+    timer0_seed = (F_CPU / baud_rate) / 8;
     
     // 1.5 times timer0_seed
-    initial_timer0_seed =
-        ((uint8_t)(( timer0_seed * 3 ) / 2)) - PCINT_STARTUP_DELAY;
+    initial_timer0_seed = ((timer0_seed * 3) / 2) - PCINT_STARTUP_DELAY;
 
     rxState = USIRX_STATE_IDLE;
     txState = USITX_STATE_IDLE;

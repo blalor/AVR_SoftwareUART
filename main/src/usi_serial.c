@@ -126,7 +126,7 @@ void usi_serial_init(const USISerialRegisters *_reg,
     timer0_stop();
 }
 
-int8_t usi_tx_byte(const uint8_t b) {
+uint8_t usi_tx_byte(const uint8_t b) {
     // wait for tx- or rx-in-progress to complete
     
     while ((rxState != USIRX_STATE_IDLE) || (txState != USITX_STATE_IDLE));

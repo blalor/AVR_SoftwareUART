@@ -48,6 +48,7 @@ static const Timer0Registers timer0Regs = {
 TEST_GROUP(USISerialRXTests) {
     void setup() {
         virtualPORTB = 0;
+        virtualPINB = 0;
         virtualDDRB = 0xff;
         virtualUSIBR = 0;
         virtualUSICR = 0xff;

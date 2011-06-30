@@ -1,7 +1,7 @@
 #include <avr/interrupt.h>
 #include <util/parity.h>
 
-#include "8bit_tiny_timer0.h"
+#include <8bit_tiny_timer0.h>
 
 #include "usi_serial.h"
 #define USI_COUNTER_MAX_COUNT 16

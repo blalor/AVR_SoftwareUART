@@ -1,3 +1,9 @@
 [submodule "test/support/CppUTest"]
-	path = test/support/CppUTest
-	url = git@github.com:blalor/CppUTest.git
+    path = test/support/CppUTest
+    url = https://github.com/blalor/CppUTest.git
+[submodule "test/support/MockAVR"]
+	path = test/support/MockAVR
+	url = https://github.com/blalor/MockAVR.git
+[submodule "main/support/libtimer"]
+	path = main/support/libtimer
+	url = https://github.com/blalor/AVR_LibTimer.git

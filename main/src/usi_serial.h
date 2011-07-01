@@ -26,7 +26,7 @@ typedef enum __baud_rate {
     BAUD_38400 = 38400,
 } BaudRate;
 
-typedef struct __usi_ser_rx_regs {
+typedef struct __usi_ser_regs {
     volatile uint8_t *pPORTB;
     volatile uint8_t *pPINB;
     volatile uint8_t *pDDRB;
